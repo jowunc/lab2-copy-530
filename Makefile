@@ -1,20 +1,25 @@
 CC=gcc
-CCFLAGS=-Wall -Wextra -g -std=c11
+CFLAGS=-c -Wall -g
 
-.PHONY: all
-all: thsort
+all: lab02 testcase
 
-thsort: thsort.c
-	${CC} ${CCFLAGS} ${<} -o ${@}
+lab02: shell.o lab02.o
+	$(CC) shell.o lab02.o -o lab02
 
-.PHONY: debug
-debug: thsort
-	gdb ./thsort
+testcase: testcase.o
+	$(CC) shell.o testcase.o -o testcase
 
-.PHONY: leak-check
-leak-check: thsort
-	valgrind --leak-check=full ./thsort
+shell.o: shell.c
+	$(CC) $(CFLAGS) shell.c
 
-.PHONY: clean
+lab02.o: lab02.c
+	$(CC) $(CFLAGS) lab02.c
+
 clean:
-	rm thsort
+	/bin/rm -f lab02 testcase *.o *.log
+
+run:
+	./lab02
+
+test:
+	./testharness.sh
