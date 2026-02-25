@@ -163,6 +163,7 @@ void execute() {
 // See the "Shell → Internal Representation"
 // section in the README for examples.
 void parse_command( char* command ) {
+<<<<<<< HEAD
   //initialize cmd struct
   cmd_t* cmd = malloc(sizeof(cmd_t));
   cmd->argc = 0;
@@ -228,6 +229,20 @@ void parse_command( char* command ) {
     }
     curr->next_node = cmd;
   }
+=======
+
+  // TODO: your solution
+
+
+
+
+  
+
+
+
+
+
+>>>>>>> f21755db606868e5c582bea9cd451c60829f3c3b
 } // end parse_command function
 
 // --------------------------------------
@@ -251,6 +266,7 @@ void parse_command( char* command ) {
 // See the "Shell → Internal Representation"
 // section in the README for examples.
 int parse_input( char* user_input ) {
+<<<<<<< HEAD
   shell->user_input = user_input;
   trim(user_input);
   if (user_input[0] == '\0'){
@@ -281,6 +297,16 @@ int parse_input( char* user_input ) {
     shell->total_cmd_t = num_pipes + 1;
   }
   return shell->total_cmd_t;
+=======
+
+  // TODO: your solution
+
+
+
+
+  
+  return 0; // this is just a place holder
+>>>>>>> f21755db606868e5c582bea9cd451c60829f3c3b
   
 } // end parse_input() function
 
