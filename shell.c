@@ -162,73 +162,132 @@ void execute() {
 //
 // See the "Shell → Internal Representation"
 // section in the README for examples.
-void parse_command( char* command ) {
-  //initialize cmd struct
+void parse_command(char* command) {
+  if (shell == NULL) {
+    shell = malloc(sizeof(input_struct));
+    if (!shell) { fprintf(stderr, "malloc failed\n"); return; }
+    shell->head_node = NULL;
+    shell->total_cmd_t = 0;
+    shell->user_input = NULL;
+  }
+
+  // initalize cmd struct
   cmd_t* cmd = malloc(sizeof(cmd_t));
+  if (!cmd) { fprintf(stderr, "malloc failed\n"); return; }
+
+  int cap = 64;
+  cmd->argv = malloc(sizeof(char*) * (cap + 1));
+  if (!cmd->argv) { fprintf(stderr, "malloc failed\n"); free(cmd); return; }
+
   cmd->argc = 0;
+  cmd->argv[0] = NULL;
   cmd->in_file = NULL;
   cmd->out_file = NULL;
   cmd->append = false;
   cmd->stderr = false;
   cmd->next_node = NULL;
-  char *p = command;
-  char *start = p;
+
   bool next_is_infile = false;
   bool next_is_outfile = false;
-  while(*p != '\0'){
-    //loop till null terminator (as appended by parse_input())
-    if (*p == ' '){
-      *p = '\0'; 
-      //check for redirection
-      if (next_is_infile){
+  bool invalid = false;
+
+  char* p = command;
+
+  while (!invalid) {
+    // skip whitespace
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (*p == '\0') break;
+
+    if ((*p == '<' || *p == '>') && (next_is_infile || next_is_outfile)) {
+      if (next_is_infile) fprintf(stderr, "Missing input filename\n");
+      else fprintf(stderr, "Missing output filename\n");
+      invalid = true;
+      break;
+    }
+
+    // handle input redirection
+    if (*p == '<') {
+      // multiple input redirections not allowed
+      if (cmd->in_file != NULL) {
+        fprintf(stderr, "Multiple input redirections\n");
+        invalid = true;
+        break;
+      }
+      next_is_infile = true;
+      p++; 
+      continue;
+    }
+
+    // handle output redirection
+    if (*p == '>') {
+      // multiple output redirections not allowed
+      if (cmd->out_file != NULL) {
+        fprintf(stderr, "Multiple output redirections\n");
+        invalid = true;
+        break;
+      }
+
+      if (*(p + 1) == '>') {
+        cmd->append = true;
+        p += 2; 
+      } else {
+        cmd->append = false;
+        p++; 
+      }
+      next_is_outfile = true;
+      continue;
+    }
+
+    char* start = p;
+    while (*p && !isspace((unsigned char)*p) && *p != '<' && *p != '>') p++;
+
+    char saved = *p;
+    *p = '\0';
+
+    if (start[0] != '\0') {
+      if (next_is_infile) {
         cmd->in_file = strdup(start);
         next_is_infile = false;
-      }
-      else if (*start == '<'){
-        next_is_infile = true;
-      }
-      else if (next_is_outfile){
+      } else if (next_is_outfile) {
         cmd->out_file = strdup(start);
         next_is_outfile = false;
+      } else {
+        if (cmd->argc < cap) cmd->argv[cmd->argc++] = strdup(start);
+        else fprintf(stderr, "Too many arguments (max %d)\n", cap);
       }
-      else if (strncmp(start, ">>", 2) == 0){
-        next_is_outfile = true;
-        cmd->append = true;
-      }
-      else if (*start == '>'){
-        next_is_outfile = true;
-      }
-      else {
-        cmd -> argv[cmd->argc++] = strdup(start);
-      }
-      start = p + 1;   
     }
-    p++;
+
+    *p = saved;
   }
-  //process the last token
-  if (next_is_infile){
-    cmd->in_file = strdup(start);
+
+  // operator at end with no filename
+  if (!invalid && next_is_infile) {
+    fprintf(stderr, "Missing input filename\n");
+    invalid = true;
   }
-  else if (next_is_outfile){
-    cmd->out_file = strdup(start);
+  if (!invalid && next_is_outfile) {
+    fprintf(stderr, "Missing output filename\n");
+    invalid = true;
   }
-  else{
-    cmd ->argv[cmd->argc++] = strdup(start);
-  }
-  //null terminate argv
+
+  // null-terminate argv
   cmd->argv[cmd->argc] = NULL;
-  //append cmd to linked list
-  if (shell->head_node == NULL){
-    shell->head_node = cmd;
+
+  // mark invalid/empty
+  if (invalid || cmd->argc == 0) {
+    cmd->argc = 0;
+    cmd->argv[0] = NULL;
   }
-  else{
-    cmd_t *curr = shell->head_node;
-    while (curr->next_node != NULL){
-      curr = curr->next_node;
-    }
+
+  // append to linked list
+  if (shell->head_node == NULL) {
+    shell->head_node = cmd;
+  } else {
+    cmd_t* curr = shell->head_node;
+    while (curr->next_node != NULL) curr = curr->next_node;
     curr->next_node = cmd;
   }
-} // end parse_command function
+} //end parse_command() function
 
 // --------------------------------------
 // Identifies and separates each command in the
@@ -251,17 +310,28 @@ void parse_command( char* command ) {
 // See the "Shell → Internal Representation"
 // section in the README for examples.
 int parse_input( char* user_input ) {
+  if (shell == NULL) {
+  shell = malloc(sizeof(input_struct));
+  if (!shell) { fprintf(stderr, "malloc failed\n"); return 0; }
+  shell->head_node = NULL;
+  shell->total_cmd_t = 0;
+  shell->user_input = NULL;
+  } else {
+    unallocate_resources();
+  }
   shell->user_input = user_input;
   trim(user_input);
   if (user_input[0] == '\0'){
     //user input is empty
     shell->total_cmd_t = 0;
     shell->head_node = NULL;
+    return 0;
   }
   else if (strchr(user_input, '|') == NULL){
     //user input is not empty and does not contain a pipe
     shell->total_cmd_t = 1;
     parse_command(user_input);
+    return shell->total_cmd_t;
   }
   else{
     //user input is not empty and there one or more pipes
@@ -272,11 +342,19 @@ int parse_input( char* user_input ) {
       if (*p == '|'){
         num_pipes ++;
         *p = '\0';
+        trim(start);
         parse_command(start);
         start = p + 1;
       }
       p++;
     }
+    trim(start);
+    if (start[0] == '\0') {
+    // empty command between pipes: treat whole input as invalid
+    shell->total_cmd_t = 0;
+    shell->head_node = NULL;
+  return 0;
+  }
     parse_command(start);
     shell->total_cmd_t = num_pipes + 1;
   }
@@ -300,13 +378,26 @@ int parse_input( char* user_input ) {
 // section in the README for additional details.
 void unallocate_resources() {
 
-  // TODO: your solution
+  if (shell == NULL) return;
 
+  cmd_t* curr = shell->head_node;
 
-
-
-
-
+  while (curr != NULL){
+    cmd_t* next = curr->next_node;
+    if (curr->argv != NULL){
+      for (int i = 0; i < curr->argc; i++){
+        free(curr->argv[i]);
+      }
+      free(curr->argv);
+    }
+    free(curr->in_file);
+    free(curr->out_file);
+    free(curr);
+    curr = next;
+  }
+  shell->head_node = NULL;
+  shell->total_cmd_t = 0;
+  shell->user_input = NULL;
 } // end unallocate_resources function
 
 
@@ -341,4 +432,3 @@ void debug() {
   }
 
 } // end debug function
-
