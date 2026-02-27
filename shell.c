@@ -143,7 +143,7 @@ void execute() {
         return;
     }
 
-    if(shell->head_node == NUll){
+    if(shell->head_node == NULL){
         return;
     }
     if (shell->total_cmd_t == 0){
@@ -160,7 +160,7 @@ void execute() {
         }
     }
 
-    int pipt_count = 0;
+    int pipe_count = 0;
     if (count > 1) {
         pipe_count = count - 1;
     }
@@ -209,7 +209,7 @@ void execute() {
             if(pipe_count > 0){
                 if(i > 0){
                     if(dup2(pipefds[i-1][0], STDIN_FILENO) < 0){
-                        peror("dup2");
+                        perror("dup2");
                         _exit(1);
                     }
                 }
@@ -225,7 +225,7 @@ void execute() {
                 }
             }
             if(node->in_file != NULL){
-                int infd = open(node->in_file, 0_RDONLY);
+                int infd = open(node->in_file, O_RDONLY);
                 if(infd < 0){
                     perror("open");
                     _exit(1);
@@ -238,11 +238,11 @@ void execute() {
                 close(infd);
             }
             if(node->out_file != NULL){
-                int flags = 0_WRONLY | 0_CREAT;
+                int flags = O_WRONLY | O_CREAT;
                 if (node->append){
-                    flages = flags | 0_APPEND;
+                    flags = flags | O_APPEND;
                 }else{
-                    flags = flags | 0_TRUNC;
+                    flags = flags | O_TRUNC;
                 }
 
                 int outfd = open(node->out_file, flags, 0644);
