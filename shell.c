@@ -135,12 +135,166 @@ void execute() {
 
   // TODO: your solution
 
+    cmd_t *node;
+    int count;
+    int i;
 
+    if(shell == NULL){
+        return;
+    }
 
+    if(shell->head_node == NUll){
+        return;
+    }
+    if (shell->total_cmd_t == 0){
+        return;
+    }
 
+    node = shell->head_node;
+    count = (int)shell->total_cmd_t;
 
+    if(count == 1){
+        if(is_builtin(node)){
+            builtin(node);
+            return;
+        }
+    }
 
-} // end execute() function
+    int pipt_count = 0;
+    if (count > 1) {
+        pipe_count = count - 1;
+    }
+
+    int (*pipefds)[2] = NULL;
+    pid_t *kids = NULL;
+    int started = 0;
+
+    kids = (pid_t*)malloc(sizeof(pid_t) * count);
+    if (kids == NULL){
+        perror("malloc");
+        return;
+    }
+
+    if (pipe_count > 0){
+        pipefds = (int (*)[2])malloc(sizeof(int[2]) * pipe_count);
+        if (pipefds == NULL){
+            perror("malloc");
+            free(kids);
+            return;
+        }
+        for (i = 0; i < pipe_count; i++){
+            if(pipe(pipefds[i]) < 0){
+                perror("pipe");
+                for(int j = 0; j < i; j++){
+                    close(pipefds[j][0]);
+                    close(pipefds[j][1]);
+                }
+                free(pipefds);
+                free(kids);
+                return;
+            }
+        }
+    }
+
+    node = shell->head_node;
+
+    for (i = 0; i < count; i++){
+        pid_t pid = fork();
+
+        if (pid < 0){
+            perror("fork");
+            break;
+        }
+        if(pid == 0){
+            if(pipe_count > 0){
+                if(i > 0){
+                    if(dup2(pipefds[i-1][0], STDIN_FILENO) < 0){
+                        peror("dup2");
+                        _exit(1);
+                    }
+                }
+                if(i < count - 1){
+                    if (dup2(pipefds[i][1], STDOUT_FILENO) < 0){
+                        perror("dup2");
+                        _exit(1);
+                    }
+                }
+                for (int k = 0; k < pipe_count; k++){
+                    close(pipefds[k][0]);
+                    close(pipefds[k][1]);
+                }
+            }
+            if(node->in_file != NULL){
+                int infd = open(node->in_file, 0_RDONLY);
+                if(infd < 0){
+                    perror("open");
+                    _exit(1);
+                }
+                if (dup2(infd, STDIN_FILENO) < 0){
+                    perror("dup2");
+                    close(infd);
+                    _exit(1);
+                }
+                close(infd);
+            }
+            if(node->out_file != NULL){
+                int flags = 0_WRONLY | 0_CREAT;
+                if (node->append){
+                    flages = flags | 0_APPEND;
+                }else{
+                    flags = flags | 0_TRUNC;
+                }
+
+                int outfd = open(node->out_file, flags, 0644);
+                if (outfd< 0){
+                    perror("open");
+                    _exit(1);
+                }
+                int target = STDOUT_FILENO;
+                if (node->stderr){
+                    target = STDERR_FILENO;
+                }
+                if (dup2(outfd, target) < 0) {
+                     perror("dup2");
+                     close(outfd);
+                     _exit(1);
+                }
+                close(outfd);
+
+        }   
+            execvp(node->argv[0], node->argv);
+            perror("execvp");
+            _exit(1);
+
+    }
+        kids[started] = pid;
+        started++;
+
+        if(node->next_node != NULL){
+            node = node->next_node;
+        }
+    
+
+    }
+
+    if(pipe_count > 0){
+        for(i = 0; i < pipe_count; i++){
+            close(pipefds[i][0]);
+            close(pipefds[i][1]);
+        }
+    }
+
+    for (i = 0; i < started; i++){
+        waitpid(kids[i], NULL, 0);
+    }
+
+    if(pipefds != NULL){
+        free(pipefds);
+    }
+    free(kids);
+
+}
+// end execute() function
 
 // --------------------------------------
 // Called by parse_input() to further process
