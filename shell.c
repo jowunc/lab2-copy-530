@@ -148,10 +148,14 @@ void execute() {
     }
     if (shell->total_cmd_t == 0){
         return;
-    }
+    } 
 
     node = shell->head_node;
     count = (int)shell->total_cmd_t;
+
+    if (node->argv == NULL || node->argv[0] == NULL){
+        return;
+    }
 
     if(count == 1){
         if(is_builtin(node)){
@@ -358,11 +362,24 @@ void parse_command(char* command) {
     while (*p && isspace((unsigned char)*p)) p++;
     if (*p == '\0') break;
 
-    if ((*p == '<' || *p == '>') && (next_is_infile || next_is_outfile)) {
+    if (((*p == '<') || (*p == '>') || (*p == '2' && *(p + 1) == '>')) && (next_is_infile || next_is_outfile)) {
       if (next_is_infile) fprintf(stderr, "Missing input filename\n");
       else fprintf(stderr, "Missing output filename\n");
       invalid = true;
       break;
+    }
+
+    if (*p == '2' && *(p + 1) == '>'){
+        if (cmd->out_file != NULL){
+            fprintf(stderr, "Mutltiple output redirections\n");
+            invalid = true;
+            break;
+        }
+        cmd->stderr = true;
+        cmd->append = false;
+        next_is_outfile = true;
+        p += 2;
+        continue;
     }
 
     // handle input redirection
