@@ -339,6 +339,8 @@ void parse_command(char* command) {
   cmd->argv = malloc(sizeof(char*) * (cap + 1));
   if (!cmd->argv) { fprintf(stderr, "malloc failed\n"); free(cmd); return; }
 
+  memset(cmd->argv, 0, sizeof(char*) * (cap + 1));
+
   cmd->argc = 0;
   cmd->argv[0] = NULL;
   cmd->in_file = NULL;
@@ -447,7 +449,7 @@ void parse_command(char* command) {
     while (curr->next_node != NULL) curr = curr->next_node;
     curr->next_node = cmd;
   }
-} //end parse_command() function
+}  //end parse_command() function
 
 // --------------------------------------
 // Identifies and separates each command in the
@@ -477,7 +479,31 @@ int parse_input( char* user_input ) {
   shell->total_cmd_t = 0;
   shell->user_input = NULL;
   } else {
-    unallocate_resources();
+    cmd_t* curr = shell->head_node;
+    while (curr != NULL) {
+      cmd_t* next = curr->next_node;
+
+      if (curr->argv != NULL) {
+        for (int i = 0; i < 65; i++) {
+          if (curr->argv[i] != NULL) {
+            free(curr->argv[i]);
+            curr->argv[i] = NULL;
+          }
+        }
+        free(curr->argv);
+        curr->argv = NULL;
+      }
+
+      free(curr->in_file);
+      free(curr->out_file);
+      free(curr);
+
+      curr = next;
+    }
+
+    shell->head_node = NULL;
+    shell->total_cmd_t = 0;
+    shell->user_input = NULL;
   }
   shell->user_input = user_input;
   trim(user_input);
@@ -538,26 +564,43 @@ int parse_input( char* user_input ) {
 // section in the README for additional details.
 void unallocate_resources() {
 
-  if (shell == NULL) return;
+    if (shell == NULL) return;
 
-  cmd_t* curr = shell->head_node;
+    cmd_t* curr = shell->head_node;
 
-  while (curr != NULL){
-    cmd_t* next = curr->next_node;
-    if (curr->argv != NULL){
-      for (int i = 0; i < curr->argc; i++){
-        free(curr->argv[i]);
-      }
-      free(curr->argv);
+    while (curr != NULL) {
+        cmd_t* next = curr->next_node;
+
+        if (curr->argv != NULL) {
+            for (int i = 0; i < 65; i++) {
+                if (curr->argv[i] != NULL) {
+                    free(curr->argv[i]);
+                    curr->argv[i] = NULL;
+                }
+            }
+            free(curr->argv);
+            curr->argv = NULL;
+        }
+
+        if (curr->in_file != NULL) {
+            free(curr->in_file);
+            curr->in_file = NULL;
+        }
+        if (curr->out_file != NULL) {
+            free(curr->out_file);
+            curr->out_file = NULL;
+        }
+
+        free(curr);
+        curr = next;
     }
-    free(curr->in_file);
-    free(curr->out_file);
-    free(curr);
-    curr = next;
-  }
-  shell->head_node = NULL;
-  shell->total_cmd_t = 0;
-  shell->user_input = NULL;
+
+    shell->head_node = NULL;
+    shell->total_cmd_t = 0;
+    shell->user_input = NULL;
+
+    free(shell);
+    shell = NULL;
 } // end unallocate_resources function
 
 
