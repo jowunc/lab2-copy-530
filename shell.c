@@ -197,12 +197,14 @@ void execute() {
     }
 
     node = shell->head_node;
+    int fork_failed = 0;
 
     for (i = 0; i < count; i++){
         pid_t pid = fork();
 
         if (pid < 0){
             perror("fork");
+            fork_failed = 1;
             break;
         }
         if(pid == 0){
@@ -292,6 +294,10 @@ void execute() {
         free(pipefds);
     }
     free(kids);
+
+    if (fork_failed){
+        return;
+    }
 
 }
 // end execute() function
