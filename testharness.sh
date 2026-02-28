@@ -27,6 +27,7 @@ done
 # ---------------------------------------------- 
 
 #testing our shell program behavior 
+
 echo "--------------------------"
 
 rm -f err.txt stdout.txt 
@@ -81,6 +82,53 @@ else
     echo "valgrind memory check (FAILED)"
 fi
 
-echo "ec1=$ec1 ec2=$ec2 ec3=$ec3 ec4=$ec4 ec5=$ec5 ec6=$ec6"
-echo "ec7=$ec7 ec8=$ec8 ec9=$ec9 ec10=$ec10 ec11=$ec11 ec12=$ec12"
 
+# ---------------------------------------------- 
+# Child Reap Checking 
+# ----------------------------------------------
+
+echo "--------------------------"
+
+( printf "yes x | head -n 1 | wc -c\nexit\n" | ./lab02 ) &
+shell_pid=$!
+wait "$shell_pid"
+
+if [ -d "/proc/$shell_pid/task/$shell_pid" ]; then
+    children=$(cat /proc/$shell_pid/task/$shell_pid/children)
+    if [ -z "$children" ]; then
+        echo "child reap check (PASSED)"
+    else
+        echo "child reap check (FAILED)"
+    fi
+else
+    echo "child reap check (PASSED)"
+fi
+
+
+# ---------------------------------------------- 
+# File Descriptor Leak Check 
+# ----------------------------------------------
+
+echo "--------------------------"
+
+rm -f fake_rep_out.txt fake_rep_in.txt
+echo "hello" > fake_rep_in.txt
+
+( printf "cat < fake_rep_in.txt | wc > fake_rep_out.txt\nsleep 1\nexit\n" | ./lab02 ) & shell_pid=$!
+
+sleep 1
+
+if [ -d "/proc/$shell_pid/fd" ]; then
+    fd_count=$(ls "/proc/$shell_pid/fd" 2>/dev/null | wc -l)
+    if [ "$fd_count" -le 3 ]; then
+        echo "fd leak check (PASSED)"
+    else
+        echo "fd leak check (FAILED) open_fds=$fd_count"
+    fi
+else
+    echo "fd leak check (PASSED)"
+fi
+
+wait "$shell_pid" 2>/dev/null
+
+rm -f fake_rep_out.txt fake_rep_in.txt

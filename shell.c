@@ -373,7 +373,7 @@ void parse_command(char* command) {
 
     if (*p == '2' && *(p + 1) == '>'){
         if (cmd->out_file != NULL){
-            fprintf(stderr, "Mutltiple output redirections\n");
+            fprintf(stderr, "Multiple output redirections\n");
             invalid = true;
             break;
         }
@@ -423,18 +423,33 @@ void parse_command(char* command) {
     char saved = *p;
     *p = '\0';
 
-    if (start[0] != '\0') {
-      if (next_is_infile) {
-        cmd->in_file = strdup(start);
-        next_is_infile = false;
-      } else if (next_is_outfile) {
-        cmd->out_file = strdup(start);
-        next_is_outfile = false;
-      } else {
-        if (cmd->argc < cap) cmd->argv[cmd->argc++] = strdup(start);
-        else fprintf(stderr, "Too many arguments (max %d)\n", cap);
-      }
+if (start[0] != '\0') {
+    char* tmp = NULL; 
+
+    tmp = (char*)malloc(strlen(start) + 1);
+    if (tmp == NULL) {                      
+        fprintf(stderr, "malloc failed\n"); 
+        invalid = true;                    
+        *p = saved;                         
+        break;                             
     }
+    strcpy(tmp, start);                    
+
+    if (next_is_infile) {
+        cmd->in_file = tmp;                
+        next_is_infile = false;
+    } else if (next_is_outfile) {
+        cmd->out_file = tmp;                
+        next_is_outfile = false;
+    } else {
+        if (cmd->argc < cap) {
+            cmd->argv[cmd->argc++] = tmp;   
+        } else {
+            free(tmp);                       
+            fprintf(stderr, "Too many arguments (max %d)\n", cap);
+        }
+    }
+}
 
     *p = saved;
   }
@@ -454,7 +469,13 @@ void parse_command(char* command) {
 
   // mark invalid/empty
   if (invalid || cmd->argc == 0) {
-    cmd->argc = 0;
+    for (int i = 0; i < 65; i++) {
+        if (cmd->argv[i] != NULL) {
+            free(cmd->argv[i]);
+            cmd->argv[i] = NULL;
+        }
+    }
+    cmd->argc = 0; 
     cmd->argv[0] = NULL;
   }
 
@@ -541,22 +562,75 @@ int parse_input( char* user_input ) {
     char *p = user_input;
     char *start = p;
     int num_pipes = 0;
+    int invalid_pipeline = 0;
     while (*p != '\0'){
       if (*p == '|'){
         num_pipes ++;
         *p = '\0';
         trim(start);
+
+        if(start[0] == '\0'){
+            invalid_pipeline = 1;
+            break;
+         }
+        
         parse_command(start);
         start = p + 1;
       }
       p++;
     }
+
+    if(invalid_pipeline){
+        cmd_t* curr = shell->head_node;
+        while (curr != NULL) {
+            cmd_t* next = curr->next_node;
+            if (curr->argv != NULL) {
+                for (int i = 0; i < 65; i++) {
+                    if (curr->argv[i] != NULL) {
+                        free(curr->argv[i]);
+                        curr->argv[i] = NULL;
+                    }
+                }   
+                free(curr->argv);
+                curr->argv = NULL;
+            }
+            free(curr->in_file);
+            free(curr->out_file);
+            free(curr);
+            curr = next;
+        }
+        shell->head_node = NULL;
+        shell->total_cmd_t = 0;
+        shell->user_input = user_input;
+        return 0;
+
+    }
+
     trim(start);
     if (start[0] == '\0') {
     // empty command between pipes: treat whole input as invalid
-    shell->total_cmd_t = 0;
-    shell->head_node = NULL;
-  return 0;
+       cmd_t* curr = shell->head_node;
+        while (curr != NULL) {
+            cmd_t* next = curr->next_node;
+            if (curr->argv != NULL) {
+                for (int i = 0; i < 65; i++) {
+                    if (curr->argv[i] != NULL) {
+                        free(curr->argv[i]);
+                        curr->argv[i] = NULL;
+                    }
+                }
+                free(curr->argv);
+                curr->argv = NULL;
+        }
+            free(curr->in_file);
+            free(curr->out_file);
+            free(curr);
+            curr = next;
+        }
+        shell->head_node = NULL;
+        shell->total_cmd_t = 0;
+        shell->user_input = user_input;
+        return 0;
   }
     parse_command(start);
     shell->total_cmd_t = num_pipes + 1;
